@@ -1,6 +1,0 @@
-@SubmissionApi_HostAddress = http://localhost:5164
-
-GET {{SubmissionApi_HostAddress}}/weatherforecast/
-Accept: application/json
-
-###

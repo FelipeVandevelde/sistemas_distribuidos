@@ -1,0 +1,154 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-dockercode}
+      POSTGRES_USER: ${POSTGRES_USER:-dockercode}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dockercode}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dockercode} -d ${POSTGRES_DB:-dockercode}"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-dockercode}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-dockercode}
+    ports:
+      - "15672:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  result-service:
+    build:
+      context: ./services/ResultService
+      dockerfile: Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__Postgres: Host=postgres;Port=5432;Database=${POSTGRES_DB:-dockercode};Username=${POSTGRES_USER:-dockercode};Password=${POSTGRES_PASSWORD:-dockercode}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  submission-api-1:
+    build:
+      context: ./services/SubmissionApi
+      dockerfile: Dockerfile
+    environment: &submission-environment
+      ASPNETCORE_ENVIRONMENT: Development
+      ResultService__BaseUrl: http://result-service:8080
+      RabbitMq__Host: rabbitmq
+      RabbitMq__Port: "5672"
+      RabbitMq__User: ${RABBITMQ_USER:-dockercode}
+      RabbitMq__Password: ${RABBITMQ_PASSWORD:-dockercode}
+      RabbitMq__Queue: execution.jobs
+      Cors__AllowedOrigins__0: http://localhost:5173
+    ports:
+      - "8081:8080"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      result-service:
+        condition: service_started
+    restart: unless-stopped
+
+  submission-api-2:
+    build:
+      context: ./services/SubmissionApi
+      dockerfile: Dockerfile
+    environment: *submission-environment
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      result-service:
+        condition: service_started
+    restart: unless-stopped
+
+  sandbox-builder:
+    image: docker:27-cli
+    command:
+      - sh
+      - -ec
+      - |
+        docker build -t dockercode-sandbox-python:latest /sandbox-images/python
+        docker build -t dockercode-sandbox-javascript:latest /sandbox-images/javascript
+        docker build -t dockercode-sandbox-java:latest /sandbox-images/java
+        docker build -t dockercode-sandbox-cpp:latest /sandbox-images/cpp
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./sandbox-images:/sandbox-images:ro
+    restart: "no"
+
+  worker-1:
+    build:
+      context: .
+      dockerfile: services/ExecutionWorker/Dockerfile
+    environment: &worker-environment
+      ASPNETCORE_ENVIRONMENT: Development
+      Worker__Id: worker-1
+      ResultService__BaseUrl: http://result-service:8080
+      RabbitMq__Host: rabbitmq
+      RabbitMq__Port: "5672"
+      RabbitMq__User: ${RABBITMQ_USER:-dockercode}
+      RabbitMq__Password: ${RABBITMQ_PASSWORD:-dockercode}
+      RabbitMq__Queue: execution.jobs
+      Docker__SocketPath: /var/run/docker.sock
+      Sandbox__TimeoutSeconds: "10"
+      Sandbox__MemoryMb: "256"
+      Sandbox__NanoCpus: "1000000000"
+      Sandbox__PidsLimit: "64"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      result-service:
+        condition: service_started
+      sandbox-builder:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  worker-2:
+    build:
+      context: .
+      dockerfile: services/ExecutionWorker/Dockerfile
+    environment:
+      <<: *worker-environment
+      Worker__Id: worker-2
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      result-service:
+        condition: service_started
+      sandbox-builder:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:80"
+    depends_on:
+      - submission-api-1
+      - submission-api-2
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  rabbitmq-data:

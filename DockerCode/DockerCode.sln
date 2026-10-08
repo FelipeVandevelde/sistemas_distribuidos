@@ -1,0 +1,30 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SubmissionApi", "services\SubmissionApi\SubmissionApi.csproj", "{A63C5070-25CB-40E9-B3EA-497392165C5D}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ResultService", "services\ResultService\ResultService.csproj", "{BC316648-E928-4BA1-91C6-D6199B631BE5}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ExecutionWorker", "services\ExecutionWorker\ExecutionWorker.csproj", "{95BAC003-E889-4DBA-9E2F-9453AE396A28}"
+EndProject
+Global
+    GlobalSection(SolutionConfigurationPlatforms) = preSolution
+        Debug|Any CPU = Debug|Any CPU
+        Release|Any CPU = Release|Any CPU
+    EndGlobalSection
+    GlobalSection(ProjectConfigurationPlatforms) = postSolution
+        {A63C5070-25CB-40E9-B3EA-497392165C5D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+        {A63C5070-25CB-40E9-B3EA-497392165C5D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+        {A63C5070-25CB-40E9-B3EA-497392165C5D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+        {A63C5070-25CB-40E9-B3EA-497392165C5D}.Release|Any CPU.Build.0 = Release|Any CPU
+        {BC316648-E928-4BA1-91C6-D6199B631BE5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+        {BC316648-E928-4BA1-91C6-D6199B631BE5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+        {BC316648-E928-4BA1-91C6-D6199B631BE5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+        {BC316648-E928-4BA1-91C6-D6199B631BE5}.Release|Any CPU.Build.0 = Release|Any CPU
+        {95BAC003-E889-4DBA-9E2F-9453AE396A28}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+        {95BAC003-E889-4DBA-9E2F-9453AE396A28}.Debug|Any CPU.Build.0 = Debug|Any CPU
+        {95BAC003-E889-4DBA-9E2F-9453AE396A28}.Release|Any CPU.ActiveCfg = Release|Any CPU
+        {95BAC003-E889-4DBA-9E2F-9453AE396A28}.Release|Any CPU.Build.0 = Release|Any CPU
+    EndGlobalSection
+EndGlobal
