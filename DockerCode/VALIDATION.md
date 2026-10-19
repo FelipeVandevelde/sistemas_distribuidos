@@ -1,30 +1,32 @@
 # Validação desta entrega
 
+Ambiente: Windows + Docker Desktop (Linux containers), .NET SDK 8/9, Node.js 24.
+
 ## VALIDADO
 
-- Sintaxe dos arquivos React/JS/JSX verificada com parser Babel.
-- `scripts/smoke-test.mjs` verificado com `node --check`.
-- `package.json` e `package-lock.json` parseados como JSON válido.
-- `docker-compose.yml` parseado como YAML válido, incluindo anchors/merge das duas réplicas.
-- Os três `.csproj` parseados como XML válido.
-- Delimitadores estruturais dos arquivos C# verificados com lexer C# (Pygments), sem chaves/parênteses/colchetes desbalanceados fora de strings/comentários.
-- Cópia de assets `img/ -> dist/img/` executada com sucesso; os cinco arquivos visuais originais foram preservados.
-- Estrutura final verificada sem `node_modules/`, `dist/`, `bin/` ou `obj/`.
+- `dotnet build` de `SubmissionApi`, `ResultService` e `ExecutionWorker`: 0 erros, 0 avisos.
+- `npm ci` e `npm run build` (Vite + cópia de `img/` para `dist/img/`): sucesso.
+- `docker compose build` / `docker compose up`: todos os serviços sobem; `sandbox-builder` encerra com código 0.
+- `node scripts/smoke-test.mjs` com o sistema em execução: **8/8 testes passaram**
+  - Python com stdin, JavaScript, Java, C++
+  - erro de compilação Java e C++
+  - runtime error Python
+  - timeout Python (`TIMEOUT`)
+- Fluxo HTTP completo via Nginx (`http://localhost:8080`): `POST /api/jobs` + `GET /api/jobs/{id}` retornando `SUCCEEDED` com stdout correto.
+- Limpeza: após os testes não restaram containers de sandbox nem volumes `dockercode-*` órfãos.
+- Rebuild completo do sistema e testes manuais pelo usuário no front-end: funcionando corretamente.
 
-## NÃO VALIDADO NESTE AMBIENTE
+## CORREÇÕES FEITAS NA VALIDAÇÃO
 
-### `npm install` / `npm run build`
+1. **`PutArchive` retornava `400 container rootfs is marked read-only`** (todos os Jobs terminavam em `INFRA_ERROR`).
+   O Docker não aceita `PUT /containers/{id}/archive` em container com rootfs read-only, mesmo com o destino em `HostConfig.Tmpfs`.
+   Solução: o `/workspace` agora é um volume `local` com driver tmpfs, criado por Job e removido ao final. Continua em memória, com rootfs read-only e `exec` habilitado.
+2. **Binário C++ sem permissão de execução**: tmpfs do Docker é `noexec` por padrão; o volume do `/workspace` agora usa `exec`.
+3. **`sh -lc` → `sh -c`**: o shell de login do Alpine redefine o `PATH` e esconderia o `java` da imagem `eclipse-temurin`.
 
-**MOTIVO:** o ambiente de execução não possui acesso DNS ao npm (`EAI_AGAIN registry.npmjs.org`) e não possui cache suficiente para `npm ci --offline`. Por isso não foi possível reinstalar as dependências Linux e concluir o build Vite neste ambiente.
+## NÃO VALIDADO
 
-### `dotnet restore` / `dotnet build`
-
-**MOTIVO:** o .NET SDK não está instalado no ambiente disponibilizado.
-
-### `docker compose config` / `docker compose build` / `docker compose up`
-
-**MOTIVO:** Docker/Compose não estão instalados no ambiente disponibilizado.
-
-### Smoke tests reais das quatro linguagens
-
-**MOTIVO:** dependem do Docker Engine e do ambiente completo em execução. Foi incluído `scripts/smoke-test.mjs` para executar esses testes após `docker compose up`.
+- Testes de carga e de concorrência intensa entre os dois Workers.
+- Roteiros formais de falha (derrubar RabbitMQ/PostgreSQL/Worker durante a execução e verificar redelivery/lease).
+- Limite de memória (`MEMORY_LIMIT`) e saída muito grande (truncamento) com Jobs reais.
+- Docker Engine nativo em Linux (a validação foi feita com Docker Desktop no Windows).

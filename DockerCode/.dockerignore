@@ -9,3 +9,4 @@ dist
 *.zip
 *.log
 README-old.md
+terraform

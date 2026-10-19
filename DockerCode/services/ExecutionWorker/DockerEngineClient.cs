@@ -88,16 +88,22 @@ public sealed class DockerEngineClient : IDisposable
         var nanoCpus = _configuration.GetValue<long>("Sandbox:NanoCpus", 500_000_000);
         var pidsLimit = _configuration.GetValue<long>("Sandbox:PidsLimit", 64);
         var containerName = $"dockercode-{jobId:N}-{Guid.NewGuid().ToString("N")[..6]}";
+        var volumeName = containerName;
         string? containerId = null;
+        var volumeCreated = false;
         var timedOut = false;
 
         try
         {
+            await CreateWorkspaceVolumeAsync(volumeName, cancellationToken);
+            volumeCreated = true;
+
             var waitCommand = $"while [ ! -f /workspace/.ready ]; do sleep 0.05; done; {spec.Command}";
             containerId = await CreateContainerAsync(
                 containerName,
                 spec.Image,
                 waitCommand,
+                volumeName,
                 memoryMb,
                 nanoCpus,
                 pidsLimit,
@@ -165,6 +171,18 @@ public sealed class DockerEngineClient : IDisposable
                     _logger.LogWarning(ex, "Não foi possível remover o container {ContainerId}", containerId);
                 }
             }
+
+            if (volumeCreated)
+            {
+                try
+                {
+                    await DeleteVolumeAsync(volumeName, CancellationToken.None);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Não foi possível remover o volume {VolumeName}", volumeName);
+                }
+            }
         }
     }
 
@@ -176,10 +194,37 @@ public sealed class DockerEngineClient : IDisposable
         return true;
     }
 
+    // A API do Docker recusa PUT /archive em containers com rootfs read-only, a menos que o destino seja um volume.
+    // Um volume "local" com driver tmpfs mantém o /workspace em memória (exec permitido para o binário C++).
+    private async Task CreateWorkspaceVolumeAsync(string name, CancellationToken cancellationToken)
+    {
+        var body = new
+        {
+            Name = name,
+            Driver = "local",
+            DriverOpts = new Dictionary<string, string>
+            {
+                ["type"] = "tmpfs",
+                ["device"] = "tmpfs",
+                ["o"] = "size=32m,exec,nosuid,nodev,uid=10001,gid=10001,mode=0700"
+            }
+        };
+
+        using var response = await SendJsonAsync(HttpMethod.Post, "/volumes/create", body, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    private async Task DeleteVolumeAsync(string name, CancellationToken cancellationToken)
+    {
+        using var response = await _client.DeleteAsync($"/volumes/{Uri.EscapeDataString(name)}?force=true", cancellationToken);
+        if (response.StatusCode != System.Net.HttpStatusCode.NotFound) response.EnsureSuccessStatusCode();
+    }
+
     private async Task<string> CreateContainerAsync(
         string name,
         string image,
         string command,
+        string workspaceVolume,
         int memoryMb,
         long nanoCpus,
         long pidsLimit,
@@ -188,7 +233,7 @@ public sealed class DockerEngineClient : IDisposable
         var body = new
         {
             Image = image,
-            Cmd = new[] { "sh", "-lc", command },
+            Cmd = new[] { "sh", "-c", command },
             WorkingDir = "/workspace",
             User = "10001:10001",
             Tty = false,
@@ -202,9 +247,9 @@ public sealed class DockerEngineClient : IDisposable
                 PidsLimit = pidsLimit,
                 SecurityOpt = new[] { "no-new-privileges" },
                 CapDrop = new[] { "ALL" },
+                Binds = new[] { $"{workspaceVolume}:/workspace" },
                 Tmpfs = new Dictionary<string, string>
                 {
-                    ["/workspace"] = "rw,nosuid,nodev,size=32m,uid=10001,gid=10001,mode=0700",
                     ["/tmp"] = "rw,nosuid,nodev,size=32m,mode=1777"
                 },
                 LogConfig = new

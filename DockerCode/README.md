@@ -84,13 +84,13 @@ Cada Worker:
 
 1. consome um Job do RabbitMQ;
 2. tenta obter claim/lease no Result Service;
-3. cria um container Docker efêmero;
-4. grava somente o código da aba ativa e o stdin no `/workspace` temporário;
+3. cria um volume tmpfs efêmero para o `/workspace` e um container Docker efêmero que o monta;
+4. envia somente o código da aba ativa e o stdin ao `/workspace` (via API de archive do Docker);
 5. compila/executa conforme a linguagem;
 6. captura stdout, stderr e exit code;
 7. classifica sucesso, erro de compilação, erro de runtime, timeout ou limite de memória;
 8. persiste o resultado;
-9. remove o container;
+9. remove o container e o volume;
 10. confirma a mensagem do RabbitMQ.
 
 ### Sandboxes Docker
@@ -112,7 +112,7 @@ Controles mínimos aplicados a cada execução:
 - usuário `10001:10001` não-root;
 - `network none`;
 - root filesystem read-only;
-- `/workspace` e `/tmp` em tmpfs;
+- `/workspace` em volume Docker efêmero com driver tmpfs (em memória, 32 MiB, `exec` habilitado para o binário C++), criado por Job e removido ao final; `/tmp` em tmpfs;
 - remoção de todas as Linux capabilities;
 - `no-new-privileges`;
 - limite de memória: 256 MiB;
@@ -454,6 +454,18 @@ DockerCode/
 ├── .dockerignore
 └── README.md
 ```
+
+## Deploy em nuvem
+
+Roteiros para publicar o mesmo `docker-compose.yml` em uma VM Linux (o Worker precisa do Docker socket, então Container Apps/Fargate/AKS/EKS não servem sem reescrever o Worker):
+
+- [Azure](docs/DEPLOY-AZURE.md)
+- [AWS](docs/DEPLOY-AWS.md)
+
+Os mesmos deploys automatizados com Terraform (VM + cloud-init + `docker compose up`):
+
+- [Terraform — Azure](terraform/azure/README.md)
+- [Terraform — AWS](terraform/aws/README.md)
 
 ## Evoluções futuras
 

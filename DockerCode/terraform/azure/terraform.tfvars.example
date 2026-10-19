@@ -1,0 +1,9 @@
+# Copie para terraform.tfvars (não versionado) e ajuste.
+
+# subscription_id     = "00000000-0000-0000-0000-000000000000"   # ou exporte ARM_SUBSCRIPTION_ID
+ssh_allowed_cidr    = "200.100.50.25/32"                          # SEU IP público (obrigatório)
+ssh_public_key_path = "~/.ssh/id_rsa.pub"
+
+# location = "brazilsouth"
+# vm_size  = "Standard_D2s_v5"
+# repo_ref = "main"
