@@ -58,6 +58,22 @@ const cases = [
     expectReason: "RUNTIME_ERROR",
   },
   {
+    name: "Python memory limit",
+    language: "python",
+    sourceCode: `data = []\nwhile True:\n    data.append(bytearray(8 * 1024 * 1024))`,
+    stdin: "",
+    expectStatus: "FAILED",
+    expectReason: "MEMORY_LIMIT",
+  },
+  {
+    name: "Python output truncation",
+    language: "python",
+    sourceCode: `print("A" * 80000)`,
+    stdin: "",
+    expectStatus: "SUCCEEDED",
+    expectStdout: "[saída truncada pelo limite do sandbox]",
+  },
+  {
     name: "Python timeout",
     language: "python",
     sourceCode: `while True:\n    pass`,
@@ -116,6 +132,30 @@ for (const test of cases) {
     failures += 1;
     console.error(`FAIL  ${test.name}: ${error.message}`);
   }
+}
+
+try {
+  const parallelJobs = await Promise.all(
+    [1, 2, 3, 4].map((index) =>
+      submit({
+        language: "python",
+        sourceCode: `import time\ntime.sleep(0.5)\nprint("job-${index}")`,
+        stdin: "",
+      })
+    )
+  );
+
+  const results = await Promise.all(parallelJobs.map((item) => waitForJob(item.jobId)));
+  results.forEach((job, index) => {
+    const expected = `job-${index + 1}`;
+    if (job.status !== "SUCCEEDED" || !job.stdout?.includes(expected)) {
+      throw new Error(`Job concorrente ${index + 1} falhou: status=${job.status}`);
+    }
+  });
+  console.log("PASS  Execução concorrente (4 Jobs em paralelo)");
+} catch (error) {
+  failures += 1;
+  console.error(`FAIL  Execução concorrente: ${error.message}`);
 }
 
 if (failures > 0) {

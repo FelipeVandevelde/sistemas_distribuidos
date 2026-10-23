@@ -374,7 +374,30 @@ Depois de `docker compose up`, em outro terminal execute:
 node scripts/smoke-test.mjs
 ```
 
-O script cobre as quatro linguagens, stdin, erros de compilação Java/C++, runtime error e timeout.
+O script cobre as quatro linguagens, stdin, erros de compilação Java/C++, runtime error, limite de memória (`MEMORY_LIMIT`), truncamento de saída (> 64 KiB), timeout e execução concorrente (4 Jobs em paralelo).
+
+### Teste de carga automatizado
+
+Com o sistema em execução (`docker compose up`), execute:
+
+```bash
+node scripts/load-test.mjs
+```
+
+O script executa 5 fases automatizadas (52 Jobs no total) e exibe tabelas no console com throughput e percentis (`P50`, `P90`, `P95`, `P99`) de **Ingestão HTTP**, **Tempo de Fila (RabbitMQ)**, **Tempo de Sandbox (Worker/Docker)** e **Turnaround Total**:
+
+1. **Baseline (`c=1`)**: 8 Jobs sequenciais (2 por linguagem) para medir o tempo de sandbox sem fila.
+2. **Capacidade Nominal (`c=2`)**: 10 Jobs com concorrência alinhada aos 2 Workers.
+3. **Burst / Rajada (`c=24`)**: 24 Jobs disparados simultaneamente para validar o balanceamento no Nginx e o amortecimento da fila no RabbitMQ.
+4. **Workload Hostil (`c=10`)**: 10 Jobs simultâneos combinando execuções normais, erro de compilação, `MEMORY_LIMIT`, truncamento de saída e `TIMEOUT` (10s).
+5. **Auditoria de Saúde e Limpeza**: Verifica o `/health` da Submission API e confirma que não restaram containers nem volumes `dockercode-*` órfãos no Docker.
+
+Para salvar também o relatório detalhado em JSON:
+
+```powershell
+$env:LOAD_REPORT_FILE = "load-report.json"
+node scripts/load-test.mjs
+```
 
 ## Limitações atuais
 
@@ -387,8 +410,8 @@ O script cobre as quatro linguagens, stdin, erros de compilação Java/C++, runt
 - A rede externa é bloqueada dentro do sandbox.
 - Não há instalação dinâmica de pacotes/bibliotecas durante a execução.
 - O timeout padrão é de 10 segundos.
-- O lease/heartbeat é propositalmente simples: suficiente para impedir que uma tentativa antiga sobrescreva um resultado novo e para permitir novo claim após expiração.
-- Não há AKS, Kubernetes, KEDA, Azure, Terraform, autenticação ou observabilidade avançada nesta etapa.
+- O lease/heartbeat impede que uma tentativa antiga sobrescreva um resultado novo e permite novo claim após expiração (limitado a até 3 tentativas por Job).
+- O projeto roda inteiramente em ambiente local (via Docker Compose); não há deploy em nuvem, autenticação ou observabilidade avançada nesta etapa.
 
 ## Botões do front-end
 
@@ -455,18 +478,6 @@ DockerCode/
 └── README.md
 ```
 
-## Deploy em nuvem
-
-Roteiros para publicar o mesmo `docker-compose.yml` em uma VM Linux (o Worker precisa do Docker socket, então Container Apps/Fargate/AKS/EKS não servem sem reescrever o Worker):
-
-- [Azure](docs/DEPLOY-AZURE.md)
-- [AWS](docs/DEPLOY-AWS.md)
-
-Os mesmos deploys automatizados com Terraform (VM + cloud-init + `docker compose up`):
-
-- [Terraform — Azure](terraform/azure/README.md)
-- [Terraform — AWS](terraform/aws/README.md)
-
 ## Evoluções futuras
 
-Depois do fluxo local estar estável, o projeto pode evoluir conforme o trabalho acadêmico exigir, incluindo Terraform/Azure, testes de carga, roteiro formal de falha e refinamentos de observabilidade. AKS/Kubernetes, tracing avançado, gVisor/Firecracker e terminal interativo permanecem fora desta entrega.
+O projeto pode evoluir conforme o trabalho acadêmico exigir, incluindo testes de carga, roteiro formal de falha e refinamentos de observabilidade. Tracing avançado, gVisor/Firecracker e terminal interativo permanecem fora desta entrega.

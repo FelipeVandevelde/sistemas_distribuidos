@@ -7,11 +7,14 @@ Ambiente: Windows + Docker Desktop (Linux containers), .NET SDK 8/9, Node.js 24.
 - `dotnet build` de `SubmissionApi`, `ResultService` e `ExecutionWorker`: 0 erros, 0 avisos.
 - `npm ci` e `npm run build` (Vite + cópia de `img/` para `dist/img/`): sucesso.
 - `docker compose build` / `docker compose up`: todos os serviços sobem; `sandbox-builder` encerra com código 0.
-- `node scripts/smoke-test.mjs` com o sistema em execução: **8/8 testes passaram**
+- `node scripts/smoke-test.mjs` com o sistema em execução:
   - Python com stdin, JavaScript, Java, C++
   - erro de compilação Java e C++
   - runtime error Python
+  - limite de memória Python (`MEMORY_LIMIT`)
+  - truncamento de saída Python (> 64 KiB)
   - timeout Python (`TIMEOUT`)
+  - execução concorrente de 4 Jobs em paralelo entre os Workers
 - Fluxo HTTP completo via Nginx (`http://localhost:8080`): `POST /api/jobs` + `GET /api/jobs/{id}` retornando `SUCCEEDED` com stdout correto.
 - Limpeza: após os testes não restaram containers de sandbox nem volumes `dockercode-*` órfãos.
 - Rebuild completo do sistema e testes manuais pelo usuário no front-end: funcionando corretamente.
@@ -26,7 +29,6 @@ Ambiente: Windows + Docker Desktop (Linux containers), .NET SDK 8/9, Node.js 24.
 
 ## NÃO VALIDADO
 
-- Testes de carga e de concorrência intensa entre os dois Workers.
+- Testes de carga de alto volume (stress test prolongado).
 - Roteiros formais de falha (derrubar RabbitMQ/PostgreSQL/Worker durante a execução e verificar redelivery/lease).
-- Limite de memória (`MEMORY_LIMIT`) e saída muito grande (truncamento) com Jobs reais.
 - Docker Engine nativo em Linux (a validação foi feita com Docker Desktop no Windows).

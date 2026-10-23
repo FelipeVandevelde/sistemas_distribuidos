@@ -240,6 +240,7 @@ sealed class JobRepository(IConfiguration configuration, ILogger<JobRepository> 
                 started_at = COALESCE(started_at, CURRENT_TIMESTAMP),
                 attempt_count = attempt_count + 1
             WHERE id = @id
+              AND attempt_count < 3
               AND (status = 'QUEUED' OR (status = 'RUNNING' AND lease_until < CURRENT_TIMESTAMP))
             RETURNING status, language, source_code, stdin, correlation_id, lease_token, lease_until;
             """;
@@ -265,6 +266,22 @@ sealed class JobRepository(IConfiguration configuration, ILogger<JobRepository> 
         }
 
         await reader.CloseAsync();
+
+        await using var expireCommand = connection.CreateCommand();
+        expireCommand.CommandText = """
+            UPDATE jobs
+            SET status = 'FAILED',
+                failure_reason = 'INFRA_ERROR',
+                stderr = COALESCE(stderr, 'Limite máximo de tentativas de execução excedido.'),
+                finished_at = CURRENT_TIMESTAMP,
+                lease_until = NULL
+            WHERE id = @id
+              AND status = 'RUNNING'
+              AND lease_until < CURRENT_TIMESTAMP
+              AND attempt_count >= 3;
+            """;
+        expireCommand.Parameters.AddWithValue("id", id);
+        await expireCommand.ExecuteNonQueryAsync(cancellationToken);
         await using var stateCommand = connection.CreateCommand();
         stateCommand.CommandText = "SELECT status, lease_until FROM jobs WHERE id = @id;";
         stateCommand.Parameters.AddWithValue("id", id);

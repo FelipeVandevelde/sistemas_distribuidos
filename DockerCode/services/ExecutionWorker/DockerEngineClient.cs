@@ -144,7 +144,7 @@ public sealed class DockerEngineClient : IDisposable
             if (timedOut)
                 return new SandboxExecutionResult("TIMEOUT", stdout, stderr, exitCode, "TIMEOUT");
 
-            if (inspection.OomKilled)
+            if (inspection.OomKilled || exitCode == 137 || IsRuntimeOutOfMemory(stderr))
                 return new SandboxExecutionResult("FAILED", stdout, stderr, exitCode, "MEMORY_LIMIT");
 
             if (exitCode == 0)
@@ -243,6 +243,7 @@ public sealed class DockerEngineClient : IDisposable
                 NetworkMode = "none",
                 ReadonlyRootfs = true,
                 Memory = (long)memoryMb * 1024 * 1024,
+                MemorySwap = (long)memoryMb * 1024 * 1024,
                 NanoCpus = nanoCpus,
                 PidsLimit = pidsLimit,
                 SecurityOpt = new[] { "no-new-privileges" },
@@ -363,6 +364,14 @@ public sealed class DockerEngineClient : IDisposable
             return (Encoding.UTF8.GetString(data), string.Empty);
 
         return (Encoding.UTF8.GetString(stdout.ToArray()), Encoding.UTF8.GetString(stderr.ToArray()));
+    }
+
+    private static bool IsRuntimeOutOfMemory(string stderr)
+    {
+        return stderr.Contains("MemoryError", StringComparison.Ordinal)
+            || stderr.Contains("java.lang.OutOfMemoryError", StringComparison.Ordinal)
+            || stderr.Contains("std::bad_alloc", StringComparison.Ordinal)
+            || stderr.Contains("JavaScript heap out of memory", StringComparison.Ordinal);
     }
 
     private static string Truncate(string value, int maxChars)

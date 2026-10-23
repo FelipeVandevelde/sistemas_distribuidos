@@ -1,8 +1,0 @@
-# Copie para terraform.tfvars (não versionado) e ajuste.
-
-ssh_allowed_cidr    = "200.100.50.25/32"   # SEU IP público (obrigatório)
-ssh_public_key_path = "~/.ssh/id_rsa.pub"
-
-# region        = "sa-east-1"
-# instance_type = "t3.large"
-# repo_ref      = "main"
