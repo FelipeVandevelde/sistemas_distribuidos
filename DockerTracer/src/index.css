@@ -1,0 +1,4 @@
+@import 'tailwindcss';
+.btn{font-size:11px;padding:4px 8px;border-radius:4px;background:#1e293b;color:#cbd5e1}
+@keyframes pulse-soft{0%,100%{box-shadow:0 0 0 0 #22d3ee00}50%{box-shadow:0 0 12px 0 #22d3ee33}}
+.animate-pulse-soft{animation:pulse-soft 2.4s infinite}
